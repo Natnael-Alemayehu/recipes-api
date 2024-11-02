@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/natnael-alemayehu/recipes-api/docs"
 	"github.com/natnael-alemayehu/recipes-api/handlers"
+	"github.com/redis/go-redis/v9"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -35,8 +37,16 @@ func init() {
 		log.Fatal(err)
 	}
 	collection := client.Database(os.Getenv("MONGO_DATABASE")).Collection("recipes")
-	recipeHandler = handlers.NewRecipiesHandler(ctx, collection)
 	log.Println("Connected to MongoDB")
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+	fmt.Println(redisClient.Ping(ctx))
+
+	recipeHandler = handlers.NewRecipiesHandler(ctx, collection, redisClient)
 }
 
 // @title			Recipe API
