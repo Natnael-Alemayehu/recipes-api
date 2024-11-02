@@ -1,34 +1,48 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
+	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/natnael-alemayehu/recipes-api/docs"
-	"github.com/rs/xid"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
 type Recipe struct {
-	ID           string    `json:"id,omitempty"`
-	Name         string    `json:"name"`
-	Tags         []string  `json:"tags"`
-	Ingredients  []string  `json:"ingredients"`
-	Instructions []string  `json:"instructions"`
-	PublishedAt  time.Time `json:"publishedAt,omitempty"`
+	ID           primitive.ObjectID `json:"id" bson:"_id"`
+	Name         string             `json:"name" bson:"name"`
+	Tags         []string           `json:"tags" bson:"tags"`
+	Ingredients  []string           `json:"ingredients" bson:"ingredients"`
+	Instructions []string           `json:"instructions" bson:"instructions"`
+	PublishedAt  time.Time          `json:"publishedAt" bson:"publishedAt"`
 }
 
-var recipes []Recipe
+var (
+	// client     *mongo.Client
+	ctx        context.Context
+	collection *mongo.Collection
+)
 
 func init() {
-	recipes = make([]Recipe, 0)
-	file, _ := os.ReadFile("recipes.json")
-	_ = json.Unmarshal([]byte(file), &recipes)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(os.Getenv("MONGO_URI")))
+	if err = client.Ping(context.TODO(), readpref.Primary()); err != nil {
+		log.Fatal(err)
+	}
+	collection = client.Database(os.Getenv("MONGO_DATABASE")).Collection("recipes")
+	log.Println("Connected to MongoDB")
 }
 
 // NewRecipeHandler godoc
@@ -49,9 +63,17 @@ func NewRecipeHander(c *gin.Context) {
 		})
 		return
 	}
-	recipe.ID = xid.New().String()
+	recipe.ID = primitive.NewObjectID()
 	recipe.PublishedAt = time.Now()
-	recipes = append(recipes, recipe)
+	_, err := collection.InsertOne(ctx, recipe)
+	if err != nil {
+		fmt.Println(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Error while inserting a new recipe",
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, recipe)
 }
 
@@ -64,8 +86,25 @@ func NewRecipeHander(c *gin.Context) {
 //	@Success		200	{object}	[]Recipe
 //	@Router			/recipes [get]
 func ListRecipeHandler(c *gin.Context) {
+	cur, err := collection.Find(ctx, bson.M{})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer cur.Close(ctx)
+
+	recipes := make([]Recipe, 0)
+	for cur.Next(ctx) {
+		var recipe Recipe
+		cur.Decode(&recipe)
+		recipes = append(recipes, recipe)
+	}
 	c.JSON(http.StatusOK, recipes)
 }
+
+// var recipes []Recipe
 
 // UpdateRecipeHandler godoc
 //
@@ -93,21 +132,23 @@ func UpdateRecipeHandler(c *gin.Context) {
 		return
 	}
 
-	index := -1
-	for i := 0; i < len(recipes); i++ {
-		if recipes[i].ID == id {
-			index = i
-		}
-	}
-	if index == -1 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Recipe not found",
+	objectId, _ := primitive.ObjectIDFromHex(id)
+	update := bson.D{{Key: "$set", Value: bson.D{
+		{Key: "name", Value: recipe.Name},
+		{Key: "tags", Value: recipe.Tags},
+		{Key: "ingredients", Value: recipe.Ingredients},
+		{Key: "instructions", Value: recipe.Instructions},
+	}}}
+	result, err := collection.UpdateByID(ctx, objectId, update)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
 		})
-		return
 	}
-	recipe.ID = id
-	recipes[index] = recipe
-	c.JSON(http.StatusOK, recipe)
+	c.JSON(http.StatusOK, gin.H{
+		"message":           "Recipe has been changed",
+		"changed_documents": result.ModifiedCount,
+	})
 }
 
 // DeleteRecipeHandler godoc
@@ -121,22 +162,24 @@ func UpdateRecipeHandler(c *gin.Context) {
 //	@Router			/recipes/{id} [delete]
 func DeleteRecipeHandler(c *gin.Context) {
 	id := c.Param("id")
-	index := -1
-	for i := 0; i < len(recipes); i++ {
-		if recipes[i].ID == id {
-			index = i
-		}
-	}
 
-	if index == -1 {
-		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Recipe not found",
+	objectId, _ := primitive.ObjectIDFromHex(id)
+
+	filter := bson.D{{Key: "_id", Value: objectId}}
+
+	var deleteDocument bson.M
+	err := collection.FindOneAndDelete(ctx, filter).Decode(&deleteDocument)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Error deleting document",
 		})
 		return
 	}
-	recipes = append(recipes[:index], recipes[index+1:]...)
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Recipe has been deleted",
+		"deleted": deleteDocument,
 	})
 }
 
@@ -153,19 +196,19 @@ func DeleteRecipeHandler(c *gin.Context) {
 //	@Router			/recipes/{id} [get]
 func ShowRecipeHandler(c *gin.Context) {
 	id := c.Param("id")
-	index := -1
-	for i := 0; i < len(recipes); i++ {
-		if recipes[i].ID == id {
-			index = i
-		}
-	}
-	if index == -1 {
+	objectId, _ := primitive.ObjectIDFromHex(id)
+
+	filter := bson.D{{Key: "_id", Value: objectId}}
+
+	var recipe Recipe
+	err := collection.FindOne(ctx, filter).Decode(&recipe)
+	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{
-			"error": "Recipe not found",
+			"error": err.Error(),
 		})
-		return
 	}
-	c.JSON(http.StatusOK, recipes[index])
+
+	c.JSON(http.StatusOK, recipe)
 }
 
 // ShowRecipeHandler godoc
@@ -180,14 +223,22 @@ func ShowRecipeHandler(c *gin.Context) {
 // @Router			/recipes/search [get]
 func SearchRecipeHandler(c *gin.Context) {
 	tag := c.Query("tag")
-	var listOfRecipe []Recipe
 
-	for i := 0; i < len(recipes); i++ {
-		for _, t := range recipes[i].Tags {
-			if strings.EqualFold(t, tag) {
-				listOfRecipe = append(listOfRecipe, recipes[i])
-			}
-		}
+	filter := bson.D{{Key: "tags", Value: tag}}
+	cur, err := collection.Find(ctx, filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	defer cur.Close(ctx)
+
+	listOfRecipe := make([]Recipe, 0)
+	for cur.Next(ctx) {
+		var recipe Recipe
+		cur.Decode(&recipe)
+		listOfRecipe = append(listOfRecipe, recipe)
 	}
 	c.JSON(http.StatusOK, listOfRecipe)
 }
