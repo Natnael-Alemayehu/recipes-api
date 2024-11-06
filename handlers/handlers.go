@@ -22,7 +22,7 @@ type RecipesHandler struct {
 	redisClient *redis.Client
 }
 
-func NewRecipiesHandler(ctx context.Context, collection *mongo.Collection, redisClient *redis.Client) *RecipesHandler {
+func RecipiesHandler(ctx context.Context, collection *mongo.Collection, redisClient *redis.Client) *RecipesHandler {
 	return &RecipesHandler{
 		collection:  collection,
 		ctx:         ctx,
