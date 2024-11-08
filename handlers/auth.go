@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -39,6 +38,16 @@ type JWTOutput struct {
 	Expires time.Time `json:"expires"`
 }
 
+// SigninHandler godoc
+//
+//	@Summary		Login with username and password
+//	@Description	This endpoint lets a user login with a username and a password
+//	@Produce		json
+//	@Tags			auth
+//	@Success		200	{object}	string
+//	@Param			recipe	body		models.User	true	"Updated recipe data"
+//	@Failure		400 {object}	map[string]interface{} "error"
+//	@Router			/signin	[post]
 func (handler *AuthHandler) SignInHandler(c *gin.Context) {
 
 	var user models.User
@@ -67,90 +76,50 @@ func (handler *AuthHandler) SignInHandler(c *gin.Context) {
 	session.Set("token", sessionToken)
 	session.Save()
 
-	expirationTime := time.Now().Add(10 * time.Minute)
-	Claims := &Claims{
-		Username: user.Username,
-		StandardClaims: jwt.StandardClaims{
-			ExpiresAt: expirationTime.Unix(),
-		},
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims)
-	tokenString, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-	JWTOutput := JWTOutput{
-		Token:   tokenString,
-		Expires: expirationTime,
-	}
-	c.JSON(http.StatusOK, JWTOutput)
+	c.JSON(http.StatusOK, gin.H{"mesasge": "User signed in"})
 }
 
+// RefreshHandler godoc
+//
+//	@Summary		Refresh token
+//	@Description	This endpoint lets a user refresh their token cridential
+//	@Produce		json
+//	@Tags			auth
+//	@Success		200	{object}	string
+//	@Failure		400 {object}	map[string]interface{} "error"
+//	@Router			/refresh [post]
 func (handler *AuthHandler) RefreshHandler(c *gin.Context) {
-	tokenValue := c.GetHeader("Authorization")
-	claims := &Claims{}
-	tkn, err := jwt.ParseWithClaims(tokenValue, claims, func(t *jwt.Token) (interface{}, error) {
-		return []byte(os.Getenv("JWT_SECRET")), nil
-	})
-	if err != nil {
+	session := sessions.Default(c)
+	sessionToken := session.Get("token")
+	sessionUser := session.Get("username")
+	if sessionToken == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-	if tkn == nil || !tkn.Valid {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "invalid token",
-		})
-		return
-	}
-	if time.Until(time.Unix(claims.ExpiresAt, 0)) > 30*time.Second {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "token is not expired yet",
-		})
-		return
-	}
-	expirationTime := time.Now().Add(5 * time.Minute)
-	claims.ExpiresAt = expirationTime.Unix()
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(os.Getenv("JWT_SECRET"))
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": err.Error(),
+			"Error": "Invalid session cookie",
 		})
 		return
 	}
 
-	JWTOutput := JWTOutput{
-		Token:   tokenString,
-		Expires: expirationTime,
-	}
-	c.JSON(http.StatusOK, JWTOutput)
+	sessionToken = xid.New().String()
+	session.Set("username", sessionUser.(string))
+	session.Set("token", sessionToken)
+	session.Save()
+
+	c.JSON(http.StatusOK, gin.H{"messge": "new session issued"})
 }
 
-func (handler *AuthHandler) SignUpHandler(c *gin.Context) {
-	var user models.User
-	if err := c.ShouldBindJSON(&user); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-	h := sha256.New()
-	_, err := handler.collection.InsertOne(handler.ctx, bson.M{
-		"username": user.Username,
-		"password": hex.EncodeToString(h.Sum([]byte(user.Password))),
-	})
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Signup successful. Please login",
-	})
+// RefreshHandler godoc
+//
+//	@Summary		Signout user
+//	@Description	This endpoint lets a user signout from the system
+//	@Produce		json
+//	@Tags			auth
+//	@Success		200	{object}	string
+//	@Failure		400 {object}	map[string]interface{} "error"
+//	@Router			/signout [post]
+func (handler *AuthHandler) SignoutHandher(c *gin.Context) {
+	session := sessions.Default(c)
+	session.Clear()
+	session.Save()
+
+	c.JSON(http.StatusOK, gin.H{"mesage": "Signed out..."})
 }

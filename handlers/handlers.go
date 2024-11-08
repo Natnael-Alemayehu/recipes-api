@@ -36,8 +36,8 @@ func RecipiesHandler(ctx context.Context, collection *mongo.Collection, redisCli
 //	@Description	This endpoint creates a new recipe in the db
 //	@Produce		json
 //	@Tags			recipes
-//	@Param			id body Recipe true "The new Recipe"
-//	@Success		200	{object}	Recipe
+//	@Param			id body models.Recipe true "The new Recipe"
+//	@Success		200	{object}	models.Recipe
 //	@Failure		400 {object}	map[string]interface{} "error"
 //	@Router			/recipes [post]
 func (handler *RecipesHandler) NewRecipeHander(c *gin.Context) {
@@ -69,7 +69,7 @@ func (handler *RecipesHandler) NewRecipeHander(c *gin.Context) {
 //	@Description	Lists all the recipes
 //	@Produce		json
 //	@Tags			recipes
-//	@Success		200	{object}	[]Recipe
+//	@Success		200	{object}	[]models.Recipe
 //	@Router			/recipes [get]
 func (handler *RecipesHandler) ListRecipeHandler(c *gin.Context) {
 	val, err := handler.redisClient.Get(handler.ctx, "recipes").Result()
@@ -112,8 +112,8 @@ func (handler *RecipesHandler) ListRecipeHandler(c *gin.Context) {
 //	@Tags			recipes
 //	@Produce		json
 //	@Param			id		path		string	true	"Recipe ID"
-//	@Param			recipe	body		Recipe	true	"Updated recipe data"
-//	@Success		200		{object}	Recipe
+//	@Param			recipe	body		models.Recipe	true	"Updated recipe data"
+//	@Success		200		{object}	models.Recipe
 //
 //	@Failure		400		{object}	map[string]interface{}	"Invalid input"
 //	@Failure		404		{object}	map[string]interface{}	"Recipe not found"
@@ -194,7 +194,7 @@ func (handler *RecipesHandler) DeleteRecipeHandler(c *gin.Context) {
 //	@Tags			recipes
 //	@Produce		json
 //	@Param			id	path		string	true	"Recipe ID"
-//	@Success		200	{object}	Recipe
+//	@Success		200	{object}	models.Recipe
 //	@Failure		400	{object}	map[string]interface{}	"Invalid input"
 //	@Failure		404	{object}	map[string]interface{}	"Recipe not found"
 //	@Router			/recipes/{id} [get]
@@ -222,7 +222,7 @@ func (handler *RecipesHandler) ShowRecipeHandler(c *gin.Context) {
 // @Tags			recipes
 // @Produce		json
 // @Param		tag	query string	true	"Tag to search recipes"
-// @Success		200	{object}	Recipe
+// @Success		200	{object}	models.Recipe
 // @Failure		400	{object}	map[string]interface{}	"Invalid input"
 // @Failure		404	{object}	map[string]interface{}	"Recipe not found"
 // @Router			/recipes/search [get]

@@ -77,7 +77,6 @@ func main() {
 
 	router.POST("/signin", authHandler.SignInHandler)
 	router.POST("/refresh", authHandler.RefreshHandler)
-	router.POST("/signup", authHandler.SignUpHandler)
 
 	authorized.Use(middleware.AuthMiddleware())
 	{
@@ -86,6 +85,7 @@ func main() {
 		authorized.GET("/recipes/search", recipeHandler.SearchRecipeHandler)
 		authorized.PUT("/recipes/:id", recipeHandler.UpdateRecipeHandler)
 		authorized.DELETE("/recipe/:id", recipeHandler.DeleteRecipeHandler)
+		authorized.POST("/signout", authHandler.SignoutHandher)
 
 		// Swagger endpoint
 		router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))

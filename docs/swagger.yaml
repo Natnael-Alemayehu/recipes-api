@@ -1,6 +1,6 @@
 basePath: /
 definitions:
-  main.Recipe:
+  models.Recipe:
     properties:
       id:
         type: string
@@ -21,6 +21,13 @@ definitions:
           type: string
         type: array
     type: object
+  models.User:
+    properties:
+      password:
+        type: string
+      username:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact: {}
@@ -39,7 +46,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/main.Recipe'
+              $ref: '#/definitions/models.Recipe'
             type: array
       summary: Lists all the Recipes in the db
       tags:
@@ -52,14 +59,14 @@ paths:
         name: id
         required: true
         schema:
-          $ref: '#/definitions/main.Recipe'
+          $ref: '#/definitions/models.Recipe'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Recipe'
+            $ref: '#/definitions/models.Recipe'
         "400":
           description: error
           schema:
@@ -102,7 +109,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Recipe'
+            $ref: '#/definitions/models.Recipe'
         "400":
           description: Invalid input
           schema:
@@ -129,14 +136,14 @@ paths:
         name: recipe
         required: true
         schema:
-          $ref: '#/definitions/main.Recipe'
+          $ref: '#/definitions/models.Recipe'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Recipe'
+            $ref: '#/definitions/models.Recipe'
         "400":
           description: Invalid input
           schema:
@@ -166,7 +173,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Recipe'
+            $ref: '#/definitions/models.Recipe'
         "400":
           description: Invalid input
           schema:
@@ -180,4 +187,65 @@ paths:
       summary: Search a recipe from a tag
       tags:
       - recipes
+  /refresh:
+    post:
+      description: This endpoint lets a user refresh their token cridential
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Refresh token
+      tags:
+      - auth
+  /signin:
+    post:
+      description: This endpoint lets a user login with a username and a password
+      parameters:
+      - description: Updated recipe data
+        in: body
+        name: recipe
+        required: true
+        schema:
+          $ref: '#/definitions/models.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Login with username and password
+      tags:
+      - auth
+  /signout:
+    post:
+      description: This endpoint lets a user signout from the system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Signout user
+      tags:
+      - auth
 swagger: "2.0"
